@@ -156,10 +156,7 @@ to other CPUs without further measurements.
   fastest B variant at every measured length and thread count. The extension
   experiments below have not been run, so this finding is limited to the main
   sweep's workload.
-- Wavefront `B` at one thread ran at 0.13–0.52x the diagonal-order serial
-  baseline. Tiled `B` reached about 7.1x row-order serial at `L=1024`, `p=8`,
-  then fell to about 4.8x at `p=16`; it still did not beat Strategy A with the
-  same row-order kernel.
+- Wavefront B at one thread ran at 0.13–0.52x the diagonal-order serial baseline. Tiled B reached about 7.1x row-order serial at L=1024, p=8, then fell to about 4.8x at p=16. Against Strategy A with the same row-order kernel, tiled B was faster in 8 of 25 configurations (mostly p<=4 at L>=512; ratio 0.73–0.89), partly because tiling already speeds up the kernel at one thread (1.38x at L=1024). At p=16 A is 3–24x faster. No B variant beat the diagonal-kernel A variants in any configuration.
 
 ## Optional extension experiments
 
