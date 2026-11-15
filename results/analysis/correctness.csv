@@ -1,0 +1,13 @@
+variant,runs,verification,max_rel_err
+A-dynamic,25,PASS,0.000e+00
+A-guided,25,PASS,0.000e+00
+A-static,25,PASS,0.000e+00
+Adflat-dynamic,25,PASS,0.000e+00
+Adiag-dynamic,25,PASS,0.000e+00
+Aflat-dynamic,25,PASS,0.000e+00
+Aflat-guided,25,PASS,0.000e+00
+Aflat-static,25,PASS,0.000e+00
+B,25,PASS,0.000e+00
+Bdiag,5,PASS,0.000e+00
+Btiled,25,PASS,0.000e+00
+serial,5,PASS,0.000e+00

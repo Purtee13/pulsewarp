@@ -114,8 +114,8 @@ def facet(par, ycol, ylabel, fname, out, ideal=None, logy=False):
     for ax in axes[-1, :]:
         ax.set_xlabel("threads", fontsize=9, color=INK)
     h, l = axes.flat[0].get_legend_handles_labels()
-    fig.legend(h, l, loc="upper center", ncol=len(l), frameon=False, fontsize=8)
-    fig.tight_layout(rect=(0, 0, 1, 0.93))
+    fig.legend(h, l, loc="upper center", ncol=4, frameon=False, fontsize=8)
+    fig.tight_layout(rect=(0, 0, 1, 0.88))
     fig.savefig(os.path.join(out, fname), dpi=160)
     plt.close(fig)
 
@@ -192,8 +192,8 @@ def crossover_plot(par, out):
             if r == 1: ax.set_xlabel("sequence length", fontsize=9, color=INK)
             style_ax(ax)
     handles, labels = axes[0, 0].get_legend_handles_labels()
-    fig.legend(handles, labels, loc="upper center", ncol=3, frameon=False, fontsize=8)
-    fig.tight_layout(rect=(0, 0, 1, 0.93))
+    fig.legend(handles, labels, loc="upper center", ncol=4, frameon=False, fontsize=8)
+    fig.tight_layout(rect=(0, 0, 1, 0.88))
     fig.savefig(os.path.join(out, "fig_crossover.png"), dpi=160)
     plt.close(fig)
 
@@ -262,17 +262,29 @@ def write_md(df, par, out):
             cells = [f"{s.speedup[t]:.2f} ({s.efficiency[t]:.2f})" if t in s.index else "-" for t in threads]
             lines.append(f"| {lab} | " + " | ".join(cells) + " |")
         lines.append("")
-    lines += ["## Faster Strategy-A mapping or B (wavefront / tiled) per configuration", "",
-              "| length | " + " | ".join(f"p={t}" for t in threads) + " |", "|---|" + "---:|" * len(threads)]
+    lines += [
+        "## Fastest matched diagonal-kernel variant by length and thread count",
+        "",
+        "This compares Adiag/Adflat with B/Btiled, using the diagonal-order DTW kernel.",
+        "",
+        "| length | " + " | ".join(f"p={t}" for t in threads) + " |",
+        "|---|" + "---:|" * len(threads),
+    ]
     for L in sorted(par.len.unique()):
         row = []
         for t in threads:
-            q = par[(par.len == L) & (par.threads == t) & par.variant.isin(
-                ["A-dynamic", "Aflat-dynamic", "B", "Btiled"])]
+            q = par[
+                (par.len == L)
+                & (par.threads == t)
+                & par.variant.isin(
+                    ["Adiag-dynamic", "Adflat-dynamic", "B", "Btiled"]
+                )
+            ]
             if q.empty:
-                row.append("-"); continue
-            w = q.loc[q.time.idxmin()]
-            row.append(f"{w.variant} ({q.time.max() / w.time:.1f}x)")
+                row.append("-")
+            else:
+                w = q.loc[q.time.idxmin()]
+                row.append(w.variant)
         lines.append(f"| {L} | " + " | ".join(row) + " |")
     verdicts = sorted(set(",".join(df.verify).split(",")))
     lines += ["", f"Verification flags seen: {', '.join(verdicts)}", ""]
