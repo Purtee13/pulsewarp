@@ -43,8 +43,20 @@ def variant(row):
     return row.strategy
 
 
-def load(paths):
-    df = pd.concat([pd.read_csv(p) for p in paths], ignore_index=True)
+def load(paths, allow_merge=False):
+    frames = []
+    for p in paths:
+        f = pd.read_csv(p)
+        f["_src"] = os.path.basename(p)
+        frames.append(f)
+    df = pd.concat(frames, ignore_index=True)
+    # The same configuration in several files usually means sweeps from different
+    # nodes/CPUs; averaging them would silently mix hardware. Refuse unless asked.
+    dup = df.groupby(["strategy", "schedule", "tile", "threads", "n", "len"])["_src"].nunique()
+    if (dup > 1).any() and not allow_merge:
+        sys.exit(f"ERROR: {int((dup > 1).sum())} configurations appear in more than one input CSV "
+                 f"({', '.join(sorted(df._src.unique()))}).\nThese are probably different machines. "
+                 "Pass a single sweep CSV, or --merge-repeats to take the median across files.")
     bad = df[df.verify.isin(["FAIL", "ERROR"])]
     if len(bad):
         print(f"WARNING: {len(bad)} rows failed verification:", file=sys.stderr)
@@ -64,14 +76,20 @@ def summarise(df):
     par = par.join(ser, on=["n", "len"]).join(diag, on=["n", "len"])
     one = par[par.threads == 1].set_index(["variant", "n", "len"]).time.rename("t_self1")
     par = par.join(one, on=["variant", "n", "len"])
-    # A and Adiag use different DTW kernels. Compare each with its own p=1
-    # timing for conventional speedup/efficiency, while retaining row-order
-    # serial as a separate end-to-end reference for every strategy.
+    # Preserve same-variant thread scaling as a separate metric. Headline
+    # speedup uses the matching serial kernel: row order for A/Aflat and
+    # diagonal order for Adiag/Adflat/B/Btiled.
     par["self_speedup"] = par.t_self1 / par.time              # vs same code at p=1
-    par["speedup"] = par.self_speedup
-    par["efficiency"] = par.speedup / par.threads             # S_p / p
     par["speedup_vs_row_serial"] = par.t_serial / par.time
-    par["speedup_vs_diag"] = par.t_diag_serial / par.time     # vs best serial kernel
+    par["speedup_vs_diag"] = par.t_diag_serial / par.time     # vs diagonal-order serial
+    diag_variants = par.variant.isin(
+        ["Adiag-dynamic", "Adflat-dynamic", "B", "Btiled"]
+    )
+    par["speedup"] = par.speedup_vs_row_serial
+    par.loc[diag_variants, "speedup"] = par.loc[
+        diag_variants, "speedup_vs_diag"
+    ]
+    par["efficiency"] = par.speedup / par.threads             # S_p / p
     return par.sort_values(["len", "variant", "threads"])
 
 
@@ -193,7 +211,7 @@ def crossover_plot(par, out):
             style_ax(ax)
     handles, labels = axes[0, 0].get_legend_handles_labels()
     fig.legend(handles, labels, loc="upper center", ncol=4, frameon=False, fontsize=8)
-    fig.tight_layout(rect=(0, 0, 1, 0.88))
+    fig.tight_layout(rect=(0, 0, 1, 0.86))
     fig.savefig(os.path.join(out, "fig_crossover.png"), dpi=160)
     plt.close(fig)
 
@@ -248,9 +266,10 @@ def write_md(df, par, out):
         s = df[(df.len == L) & (df.variant == "serial")].time
         d = df[(df.len == L) & (df.variant == "Bdiag")].time
         lines.append(f"| {L} | {s.iloc[0]:.3f} | {d.iloc[0]:.3f} |" if len(s) and len(d) else f"| {L} | - | - |")
-    lines += ["", "## Speedup vs same strategy at 1 thread (efficiency in brackets)",
-              "", "Speedup and efficiency use the same kernel at one thread as the baseline.",
-              "The row-order serial baseline is available separately in `summary.csv` as `speedup_vs_row_serial`.", ""]
+    lines += ["", "## Speedup vs matching serial baseline (efficiency in brackets)",
+              "", "Speedup is T_serial / T_p; efficiency is speedup / thread count.",
+              "Row-order A variants use row-order serial. Diagonal-kernel and wavefront variants use diagonal-order serial (Bdiag).",
+              "Scaling against each variant's own one-thread run is available in `summary.csv` as `self_speedup` and in `fig_self_speedup.png`.", ""]
     threads = sorted(par.threads.unique())
     for L in sorted(par.len.unique()):
         lines += [f"### length {L}", "", "| variant | " + " | ".join(f"p={t}" for t in threads) + " |",
@@ -262,29 +281,25 @@ def write_md(df, par, out):
             cells = [f"{s.speedup[t]:.2f} ({s.efficiency[t]:.2f})" if t in s.index else "-" for t in threads]
             lines.append(f"| {lab} | " + " | ".join(cells) + " |")
         lines.append("")
-    lines += [
-        "## Fastest matched diagonal-kernel variant by length and thread count",
-        "",
-        "This compares Adiag/Adflat with B/Btiled, using the diagonal-order DTW kernel.",
-        "",
-        "| length | " + " | ".join(f"p={t}" for t in threads) + " |",
-        "|---|" + "---:|" * len(threads),
-    ]
+    lines += ["## Best Strategy A variant vs best Strategy B variant per configuration", "",
+              "Cell: winner (best time of the other strategy / winner time). Strategy A candidates include the",
+              "diagonal-kernel variants (Adiag, Adflat), so the result is not decided by the kernel alone.",
+              "Same-kernel pairs: A-dynamic/Aflat vs Btiled (row-order cells), Adiag/Adflat vs B (diagonal order).", "",
+              "| length | " + " | ".join(f"p={t}" for t in threads) + " |", "|---|" + "---:|" * len(threads)]
+    a_vars = [k for k, *_ in VARIANTS if k.startswith("A")]
+    b_vars = ["B", "Btiled"]
     for L in sorted(par.len.unique()):
         row = []
         for t in threads:
-            q = par[
-                (par.len == L)
-                & (par.threads == t)
-                & par.variant.isin(
-                    ["Adiag-dynamic", "Adflat-dynamic", "B", "Btiled"]
-                )
-            ]
-            if q.empty:
-                row.append("-")
+            q = par[(par.len == L) & (par.threads == t)]
+            qa, qb = q[q.variant.isin(a_vars)], q[q.variant.isin(b_vars)]
+            if qa.empty or qb.empty:
+                row.append("-"); continue
+            wa, wb = qa.loc[qa.time.idxmin()], qb.loc[qb.time.idxmin()]
+            if wa.time <= wb.time:
+                row.append(f"A: {wa.variant} ({wb.time / wa.time:.1f}x)")
             else:
-                w = q.loc[q.time.idxmin()]
-                row.append(w.variant)
+                row.append(f"B: {wb.variant} ({wa.time / wb.time:.1f}x)")
         lines.append(f"| {L} | " + " | ".join(row) + " |")
     verdicts = sorted(set(",".join(df.verify).split(",")))
     lines += ["", f"Verification flags seen: {', '.join(verdicts)}", ""]
@@ -296,14 +311,16 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("csv", nargs="+")
     ap.add_argument("--out", default="results/analysis")
+    ap.add_argument("--merge-repeats", action="store_true",
+                    help="allow the same configuration in several CSVs (median is taken)")
     ap.add_argument("--profile", help="per-thread profile CSV from --profile in pulsewarp")
     a = ap.parse_args()
     os.makedirs(a.out, exist_ok=True)
-    df = load(a.csv)
+    df = load(a.csv, a.merge_repeats)
     par = summarise(df)
     par.to_csv(os.path.join(a.out, "summary.csv"), index=False, float_format="%.6g")
     facet(par, "time", "runtime (s)", "fig_runtime.png", a.out, logy=True)
-    facet(par, "speedup", "speedup vs same strategy at 1 thread", "fig_speedup.png", a.out, ideal=lambda t: t)
+    facet(par, "speedup", "speedup vs matching serial baseline", "fig_speedup.png", a.out, ideal=lambda t: t)
     facet(par, "efficiency", "efficiency (S/p)", "fig_efficiency.png", a.out, ideal=lambda t: 1.0)
     facet(par, "self_speedup", "speedup vs own 1-thread", "fig_self_speedup.png", a.out, ideal=lambda t: t)
     heatmap_ab(par, a.out)

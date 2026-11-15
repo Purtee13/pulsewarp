@@ -239,22 +239,3 @@ int main(int argc, char **argv)
     free(sorted); free(times); free(dist); free_dataset(&d);
     return (golden && strcmp(vstat, "PASS")) ? 2 : 0;
 }
-/*
- * pulsewarp: all-pairs DTW over N ECG heartbeats, one strategy per run.
- *
- *   ./pulsewarp --input data/mitbih_train.csv --n 300 --len 256 \
- *               --strategy A --schedule dynamic --threads 16 --reps 5 \
- *               --golden results/golden/golden_N300_L256.bin
- *
- * Prints one CSV result row to stdout (diagnostics go to stderr).
- */
-#define _POSIX_C_SOURCE 200809L
-#include "pulsewarp.h"
-
-#include <getopt.h>
-#include <math.h>
-#include <omp.h>
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>

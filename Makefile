@@ -57,7 +57,7 @@ verify: $(BIN)
 	done
 
 # Regenerate the report tables and figures from one or more sweep CSVs.
-ANALYSIS_INPUTS ?= results/sweep_*.csv
+ANALYSIS_INPUTS ?= $(lastword $(sort $(wildcard results/sweep_*_N*.csv)))
 analyze:
 	python3 scripts/analyze.py $(ANALYSIS_INPUTS) --out results/analysis $(if $(PROFILE),--profile $(PROFILE),)
 

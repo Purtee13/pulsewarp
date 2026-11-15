@@ -10,25 +10,26 @@
 | 512 | 19.835 | 2.383 |
 | 1024 | 80.897 | 9.119 |
 
-## Speedup vs same strategy at 1 thread (efficiency in brackets)
+## Speedup vs matching serial baseline (efficiency in brackets)
 
-Speedup and efficiency use the same kernel at one thread as the baseline.
-The row-order serial baseline is available separately in `summary.csv` as `speedup_vs_row_serial`.
+Speedup is T_serial / T_p; efficiency is speedup / thread count.
+Row-order A variants use row-order serial. Diagonal-kernel and wavefront variants use diagonal-order serial (Bdiag).
+Scaling against each variant's own one-thread run is available in `summary.csv` as `self_speedup` and in `fig_self_speedup.png`.
 
 ### length 64
 
 | variant | p=1 | p=2 | p=4 | p=8 | p=16 |
 |---|---:|---:|---:|---:|---:|
-| Strategy A, static | 1.00 (1.00) | 1.33 (0.67) | 2.28 (0.57) | 4.19 (0.52) | 7.93 (0.50) |
-| Strategy A, dynamic | 1.00 (1.00) | 2.00 (1.00) | 3.99 (1.00) | 7.95 (0.99) | 15.53 (0.97) |
+| Strategy A, static | 1.00 (1.00) | 1.33 (0.67) | 2.28 (0.57) | 4.20 (0.52) | 7.94 (0.50) |
+| Strategy A, dynamic | 1.00 (1.00) | 2.00 (1.00) | 3.99 (1.00) | 7.96 (0.99) | 15.54 (0.97) |
 | Strategy A, guided | 1.00 (1.00) | 1.33 (0.67) | 2.28 (0.57) | 4.20 (0.52) | 7.85 (0.49) |
-| Strategy A flat, static | 1.00 (1.00) | 1.99 (1.00) | 3.98 (1.00) | 7.93 (0.99) | 15.44 (0.96) |
-| Strategy A flat, dynamic | 1.00 (1.00) | 1.99 (1.00) | 3.97 (0.99) | 7.91 (0.99) | 14.85 (0.93) |
-| Strategy A flat, guided | 1.00 (1.00) | 1.99 (1.00) | 3.98 (1.00) | 7.93 (0.99) | 15.47 (0.97) |
-| Strategy A, diag kernel | 1.00 (1.00) | 1.94 (0.97) | 3.74 (0.94) | 7.09 (0.89) | 11.42 (0.71) |
-| Strategy A flat, diag kernel | 1.00 (1.00) | 1.94 (0.97) | 3.81 (0.95) | 7.09 (0.89) | 10.39 (0.65) |
-| Strategy B, wavefront | 1.00 (1.00) | 0.68 (0.34) | 0.39 (0.10) | 0.27 (0.03) | 0.09 (0.01) |
-| Strategy B, tiled | 1.00 (1.00) | 0.97 (0.48) | 0.93 (0.23) | 0.88 (0.11) | 0.66 (0.04) |
+| Strategy A flat, static | 1.00 (1.00) | 2.00 (1.00) | 3.98 (1.00) | 7.93 (0.99) | 15.44 (0.97) |
+| Strategy A flat, dynamic | 1.00 (1.00) | 1.99 (0.99) | 3.97 (0.99) | 7.90 (0.99) | 14.84 (0.93) |
+| Strategy A flat, guided | 1.00 (1.00) | 2.00 (1.00) | 3.98 (1.00) | 7.93 (0.99) | 15.48 (0.97) |
+| Strategy A, diag kernel | 1.07 (1.07) | 2.08 (1.04) | 4.01 (1.00) | 7.60 (0.95) | 12.24 (0.77) |
+| Strategy A flat, diag kernel | 1.04 (1.04) | 2.01 (1.01) | 3.95 (0.99) | 7.35 (0.92) | 10.78 (0.67) |
+| Strategy B, wavefront | 0.13 (0.13) | 0.09 (0.04) | 0.05 (0.01) | 0.03 (0.00) | 0.01 (0.00) |
+| Strategy B, tiled | 0.26 (0.26) | 0.25 (0.13) | 0.24 (0.06) | 0.23 (0.03) | 0.17 (0.01) |
 
 ### length 128
 
@@ -36,14 +37,14 @@ The row-order serial baseline is available separately in `summary.csv` as `speed
 |---|---:|---:|---:|---:|---:|
 | Strategy A, static | 1.00 (1.00) | 1.33 (0.67) | 2.28 (0.57) | 4.20 (0.53) | 8.07 (0.50) |
 | Strategy A, dynamic | 1.00 (1.00) | 2.00 (1.00) | 3.99 (1.00) | 7.96 (1.00) | 15.89 (0.99) |
-| Strategy A, guided | 1.00 (1.00) | 1.33 (0.67) | 2.28 (0.57) | 4.20 (0.53) | 8.07 (0.50) |
+| Strategy A, guided | 1.00 (1.00) | 1.33 (0.67) | 2.28 (0.57) | 4.20 (0.52) | 8.07 (0.50) |
 | Strategy A flat, static | 1.00 (1.00) | 2.00 (1.00) | 3.99 (1.00) | 7.96 (1.00) | 15.85 (0.99) |
-| Strategy A flat, dynamic | 1.00 (1.00) | 2.00 (1.00) | 3.99 (1.00) | 7.96 (1.00) | 15.78 (0.99) |
+| Strategy A flat, dynamic | 1.00 (1.00) | 2.00 (1.00) | 3.99 (1.00) | 7.96 (0.99) | 15.77 (0.99) |
 | Strategy A flat, guided | 1.00 (1.00) | 2.00 (1.00) | 3.99 (1.00) | 7.96 (1.00) | 15.86 (0.99) |
-| Strategy A, diag kernel | 1.00 (1.00) | 1.99 (1.00) | 3.83 (0.96) | 7.13 (0.89) | 12.23 (0.76) |
-| Strategy A flat, diag kernel | 1.00 (1.00) | 1.98 (0.99) | 3.78 (0.94) | 6.92 (0.87) | 11.89 (0.74) |
-| Strategy B, wavefront | 1.00 (1.00) | 0.61 (0.30) | 0.39 (0.10) | 0.27 (0.03) | 0.10 (0.01) |
-| Strategy B, tiled | 1.00 (1.00) | 1.27 (0.64) | 1.25 (0.31) | 1.21 (0.15) | 0.94 (0.06) |
+| Strategy A, diag kernel | 0.98 (0.98) | 1.96 (0.98) | 3.76 (0.94) | 7.01 (0.88) | 12.02 (0.75) |
+| Strategy A flat, diag kernel | 0.99 (0.99) | 1.96 (0.98) | 3.73 (0.93) | 6.84 (0.85) | 11.75 (0.73) |
+| Strategy B, wavefront | 0.16 (0.16) | 0.10 (0.05) | 0.06 (0.02) | 0.04 (0.01) | 0.02 (0.00) |
+| Strategy B, tiled | 0.18 (0.18) | 0.23 (0.11) | 0.22 (0.06) | 0.21 (0.03) | 0.17 (0.01) |
 
 ### length 256
 
@@ -54,52 +55,54 @@ The row-order serial baseline is available separately in `summary.csv` as `speed
 | Strategy A, guided | 1.00 (1.00) | 1.33 (0.67) | 2.28 (0.57) | 4.19 (0.52) | 8.11 (0.51) |
 | Strategy A flat, static | 1.00 (1.00) | 2.00 (1.00) | 3.99 (1.00) | 7.93 (0.99) | 15.68 (0.98) |
 | Strategy A flat, dynamic | 1.00 (1.00) | 2.00 (1.00) | 3.99 (1.00) | 7.96 (0.99) | 15.54 (0.97) |
-| Strategy A flat, guided | 1.00 (1.00) | 2.00 (1.00) | 3.99 (1.00) | 7.96 (0.99) | 15.55 (0.97) |
-| Strategy A, diag kernel | 1.00 (1.00) | 1.99 (1.00) | 3.89 (0.97) | 6.61 (0.83) | 12.96 (0.81) |
-| Strategy A flat, diag kernel | 1.00 (1.00) | 2.02 (1.01) | 3.74 (0.94) | 6.56 (0.82) | 12.63 (0.79) |
-| Strategy B, wavefront | 1.00 (1.00) | 0.70 (0.35) | 0.43 (0.11) | 0.30 (0.04) | 0.11 (0.01) |
-| Strategy B, tiled | 1.00 (1.00) | 1.54 (0.77) | 2.11 (0.53) | 2.03 (0.25) | 1.38 (0.09) |
+| Strategy A flat, guided | 1.00 (1.00) | 2.00 (1.00) | 3.99 (1.00) | 7.96 (0.99) | 15.56 (0.97) |
+| Strategy A, diag kernel | 1.01 (1.01) | 2.01 (1.00) | 3.92 (0.98) | 6.66 (0.83) | 13.06 (0.82) |
+| Strategy A flat, diag kernel | 1.02 (1.02) | 2.06 (1.03) | 3.81 (0.95) | 6.69 (0.84) | 12.87 (0.80) |
+| Strategy B, wavefront | 0.25 (0.25) | 0.17 (0.09) | 0.11 (0.03) | 0.08 (0.01) | 0.03 (0.00) |
+| Strategy B, tiled | 0.16 (0.16) | 0.24 (0.12) | 0.33 (0.08) | 0.32 (0.04) | 0.22 (0.01) |
 
 ### length 512
 
 | variant | p=1 | p=2 | p=4 | p=8 | p=16 |
 |---|---:|---:|---:|---:|---:|
 | Strategy A, static | 1.00 (1.00) | 1.33 (0.67) | 2.28 (0.57) | 4.20 (0.53) | 8.11 (0.51) |
-| Strategy A, dynamic | 1.00 (1.00) | 2.00 (1.00) | 3.99 (1.00) | 7.97 (1.00) | 15.76 (0.98) |
+| Strategy A, dynamic | 1.00 (1.00) | 2.00 (1.00) | 3.99 (1.00) | 7.96 (1.00) | 15.76 (0.98) |
 | Strategy A, guided | 1.00 (1.00) | 1.33 (0.67) | 2.28 (0.57) | 4.20 (0.53) | 8.12 (0.51) |
-| Strategy A flat, static | 1.00 (1.00) | 2.00 (1.00) | 3.99 (1.00) | 7.97 (1.00) | 15.74 (0.98) |
-| Strategy A flat, dynamic | 1.00 (1.00) | 2.00 (1.00) | 3.99 (1.00) | 7.97 (1.00) | 15.77 (0.99) |
+| Strategy A flat, static | 1.00 (1.00) | 2.00 (1.00) | 3.99 (1.00) | 7.96 (1.00) | 15.74 (0.98) |
+| Strategy A flat, dynamic | 1.00 (1.00) | 2.00 (1.00) | 3.99 (1.00) | 7.97 (1.00) | 15.76 (0.99) |
 | Strategy A flat, guided | 1.00 (1.00) | 2.00 (1.00) | 3.99 (1.00) | 7.97 (1.00) | 15.77 (0.99) |
-| Strategy A, diag kernel | 1.00 (1.00) | 1.92 (0.96) | 3.60 (0.90) | 6.48 (0.81) | 11.88 (0.74) |
-| Strategy A flat, diag kernel | 1.00 (1.00) | 2.12 (1.06) | 3.95 (0.99) | 6.98 (0.87) | 12.85 (0.80) |
-| Strategy B, wavefront | 1.00 (1.00) | 0.85 (0.42) | 0.58 (0.14) | 0.37 (0.05) | 0.14 (0.01) |
-| Strategy B, tiled | 1.00 (1.00) | 1.74 (0.87) | 2.76 (0.69) | 3.75 (0.47) | 2.15 (0.13) |
+| Strategy A, diag kernel | 1.02 (1.02) | 1.96 (0.98) | 3.68 (0.92) | 6.61 (0.83) | 12.13 (0.76) |
+| Strategy A flat, diag kernel | 0.95 (0.95) | 2.01 (1.01) | 3.75 (0.94) | 6.61 (0.83) | 12.18 (0.76) |
+| Strategy B, wavefront | 0.40 (0.40) | 0.34 (0.17) | 0.23 (0.06) | 0.15 (0.02) | 0.06 (0.00) |
+| Strategy B, tiled | 0.16 (0.16) | 0.28 (0.14) | 0.45 (0.11) | 0.61 (0.08) | 0.35 (0.02) |
 
 ### length 1024
 
 | variant | p=1 | p=2 | p=4 | p=8 | p=16 |
 |---|---:|---:|---:|---:|---:|
-| Strategy A, static | 1.00 (1.00) | 1.33 (0.67) | 2.28 (0.57) | 4.20 (0.52) | 8.11 (0.51) |
-| Strategy A, dynamic | 1.00 (1.00) | 2.00 (1.00) | 3.99 (1.00) | 7.97 (1.00) | 15.83 (0.99) |
+| Strategy A, static | 1.00 (1.00) | 1.33 (0.67) | 2.28 (0.57) | 4.20 (0.53) | 8.12 (0.51) |
+| Strategy A, dynamic | 1.00 (1.00) | 2.00 (1.00) | 4.00 (1.00) | 7.97 (1.00) | 15.83 (0.99) |
 | Strategy A, guided | 1.00 (1.00) | 1.33 (0.67) | 2.28 (0.57) | 4.20 (0.53) | 8.11 (0.51) |
 | Strategy A flat, static | 1.00 (1.00) | 2.00 (1.00) | 3.99 (1.00) | 7.97 (1.00) | 15.76 (0.98) |
 | Strategy A flat, dynamic | 1.00 (1.00) | 2.00 (1.00) | 3.99 (1.00) | 7.97 (1.00) | 15.76 (0.98) |
 | Strategy A flat, guided | 1.00 (1.00) | 2.00 (1.00) | 3.99 (1.00) | 7.97 (1.00) | 15.78 (0.99) |
-| Strategy A, diag kernel | 1.00 (1.00) | 2.02 (1.01) | 3.86 (0.96) | 6.71 (0.84) | 12.29 (0.77) |
-| Strategy A flat, diag kernel | 1.00 (1.00) | 2.04 (1.02) | 3.85 (0.96) | 6.67 (0.83) | 12.30 (0.77) |
-| Strategy B, wavefront | 1.00 (1.00) | 1.05 (0.53) | 0.83 (0.21) | 0.52 (0.07) | 0.20 (0.01) |
-| Strategy B, tiled | 1.00 (1.00) | 1.87 (0.94) | 3.25 (0.81) | 5.13 (0.64) | 3.51 (0.22) |
+| Strategy A, diag kernel | 0.95 (0.95) | 1.93 (0.96) | 3.68 (0.92) | 6.39 (0.80) | 11.71 (0.73) |
+| Strategy A flat, diag kernel | 0.95 (0.95) | 1.94 (0.97) | 3.66 (0.92) | 6.35 (0.79) | 11.71 (0.73) |
+| Strategy B, wavefront | 0.52 (0.52) | 0.55 (0.28) | 0.43 (0.11) | 0.27 (0.03) | 0.11 (0.01) |
+| Strategy B, tiled | 0.16 (0.16) | 0.29 (0.15) | 0.50 (0.13) | 0.80 (0.10) | 0.54 (0.03) |
 
-## Fastest matched diagonal-kernel variant by length and thread count
+## Best Strategy A variant vs best Strategy B variant per configuration
 
-This compares Adiag/Adflat with B/Btiled, using the diagonal-order DTW kernel.
+Cell: winner (best time of the other strategy / winner time). Strategy A candidates include the
+diagonal-kernel variants (Adiag, Adflat), so the result is not decided by the kernel alone.
+Same-kernel pairs: A-dynamic/Aflat vs Btiled (row-order cells), Adiag/Adflat vs B (diagonal order).
 
 | length | p=1 | p=2 | p=4 | p=8 | p=16 |
 |---|---:|---:|---:|---:|---:|
-| 64 | Adiag-dynamic | Adiag-dynamic | Adiag-dynamic | Adiag-dynamic | Adiag-dynamic |
-| 128 | Adflat-dynamic | Adiag-dynamic | Adiag-dynamic | Adiag-dynamic | Adiag-dynamic |
-| 256 | Adflat-dynamic | Adflat-dynamic | Adiag-dynamic | Adflat-dynamic | Adiag-dynamic |
-| 512 | Adiag-dynamic | Adflat-dynamic | Adflat-dynamic | Adiag-dynamic | Adflat-dynamic |
-| 1024 | Adiag-dynamic | Adflat-dynamic | Adiag-dynamic | Adiag-dynamic | Adflat-dynamic |
+| 64 | A: Adiag-dynamic (4.1x) | A: Adiag-dynamic (8.3x) | A: Adiag-dynamic (16.6x) | A: Adiag-dynamic (33.3x) | A: Adiag-dynamic (71.6x) |
+| 128 | A: Adflat-dynamic (5.6x) | A: Adiag-dynamic (8.7x) | A: Adiag-dynamic (17.0x) | A: Adiag-dynamic (32.7x) | A: Adiag-dynamic (72.5x) |
+| 256 | A: Adflat-dynamic (4.1x) | A: Adflat-dynamic (8.5x) | A: Adiag-dynamic (11.8x) | A: Adflat-dynamic (20.9x) | A: Adiag-dynamic (59.9x) |
+| 512 | A: Adiag-dynamic (2.5x) | A: Adflat-dynamic (5.9x) | A: Adflat-dynamic (8.4x) | A: Adiag-dynamic (10.9x) | A: Adflat-dynamic (34.9x) |
+| 1024 | A: Adiag-dynamic (1.8x) | A: Adflat-dynamic (3.5x) | A: Adiag-dynamic (7.3x) | A: Adiag-dynamic (8.0x) | A: Adflat-dynamic (21.5x) |
 
 Verification flags seen: PASS

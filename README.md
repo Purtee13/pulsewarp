@@ -91,9 +91,6 @@ every run against the golden vector. Override with env vars, e.g.
 list with `THREADS="1 2 4 8 16 32"` only when your SLURM allocation provides
 at least that many CPUs.
 `scripts/pulsewarp.slurm` is a single-run template for debugging one config.
-The CSV already included in this archive is the earlier sweep: it has no Aflat
-or Adflat measurements. Rerun `scripts/sweep.slurm` to collect those new
-variants and the Strategy-A profile; then pass that profile path to `make analyze`.
 
 ## Analysis output (`scripts/analyze.py`)
 
@@ -110,23 +107,50 @@ variants and the Strategy-A profile; then pass that profile path to `make analyz
 - `fig_correctness.png` / `correctness.csv`: verification coverage and maximum error
 - `fig_serial_vs_length.png`: both serial kernels against O(L²)
 
+## Extension experiments (`scripts/sweep_ext.sh`)
+
+Not yet run on ARC. Same node type as the main sweep.
+
+```bash
+sbatch scripts/sweep_ext.slurm                      # all modes
+sbatch --export=ALL,MODES=nsweep scripts/sweep_ext.slurm
+python3 scripts/analyze_ext.py                      # -> results/analysis_ext/
+# fold the extra lengths into the main plots (configurations do not overlap):
+make analyze ANALYSIS_INPUTS="results/sweep_341380_N300.csv results/ext_lengths_<jobid>_N300.csv"
+```
+
+| mode | question |
+|---|---|
+| `nsweep` | few beats (N=2..32), long sequences (L=1024, 4096), 16 threads: once A has fewer pairs than threads, can B overtake it? Also B with `OMP_WAIT_POLICY=active` |
+| `weak` | work grows with p: A with N ~ sqrt(p); B with L ~ sqrt(p) |
+| `affinity` | OMP_PROC_BIND / OMP_PLACES: false, close, spread x cores, threads |
+| `lengths` | lengths 32 and 187 (native) from the locked proposal scope |
+
 ## Interpreting the diagonal kernel and measured results
 
 The row-order kernel is latency bound: each cell waits on its left neighbour.
 In diagonal order the cells of a diagonal are independent, so GCC can
-vectorise the inner loop. On the included ARC sweep, the serial diagonal
-kernel (`Bdiag`) was about 3.4x faster than row-order serial at L=256
-(1.273 s vs 4.380 s). That is why `Adiag` is a separate variant and why the
-analysis distinguishes speedup against the same one-thread strategy from
-end-to-end speedup against row-order serial.
+vectorise the inner loop. On the included sweep, the serial diagonal kernel
+(`Bdiag`) is about 8x faster than row-order serial (L=256: 0.574 s vs 4.768 s;
+L=1024: 9.12 s vs 80.9 s). That is why `Adiag`/`Adflat` are separate variants
+and why the analysis distinguishes speedup against the same strategy at one
+thread from end-to-end speedup against row-order serial.
 
-The included sweep is one run on an AMD EPYC 7302P node with 16 physical
-cores, N=300, lengths 64..1024, and five timed repetitions per configuration.
-Every row passed exact golden-vector verification. Strategy A with dynamic
-scheduling reached about 16x same-kernel speedup at 16 threads in this run.
-This is an observed result for this node and dataset; report timing variation
-and the single-node scope when interpreting it.
+The included sweep (`results/sweep_341380_N300.*`) is one run on node `c0`:
+AMD EPYC 9115, 16 physical cores, no SMT, one NUMA node, GCC 12.4.0,
+`OMP_PROC_BIND=close OMP_PLACES=cores`, N=300, lengths 64..1024, threads
+1..16, five timed repetitions per configuration. Every row (260) passed exact
+golden-vector verification. It includes `Aflat`/`Adflat` and guided scheduling
+and was used to produce `results/analysis/` and the per-thread profile
+`results/profile_A_static_L256_p16.csv`. An earlier sweep from a different CPU
+(EPYC 7302P) is kept in `results/archive/` for reference only; `analyze.py`
+refuses to average sweeps from different files unless `--merge-repeats` is given.
 
-The included sweep predates `Aflat`/`Adflat` and guided scheduling. Rerun the
-updated sweep before reporting results for those additions. The sweep also
-writes a profile CSV for the load-imbalance figure on the same compute node.
+Observed in this run (single node, single dataset): Strategy A with dynamic
+scheduling, or any schedule on the flattened loop, reaches about 15-16x at
+16 threads; static and guided on the outer-index loop stall near 8x because
+the triangular loop gives thread 0 about 36x the pairs of thread 15 (see the
+profile). The diagonal-kernel variants scale to roughly 10-13x at 16 threads.
+Strategy B (wavefront) is slower than its own 1-thread run in every
+configuration with p >= 2 except L=1024 at p=2 (1.05x); the tiled version helps only at the longest lengths and still does not
+beat Strategy A with the same kernel.
