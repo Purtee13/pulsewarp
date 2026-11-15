@@ -77,14 +77,14 @@ def summarise(df):
     one = par[par.threads == 1].set_index(["variant", "n", "len"]).time.rename("t_self1")
     par = par.join(one, on=["variant", "n", "len"])
     # Preserve same-variant thread scaling as a separate metric. Headline
-    # speedup uses the matching serial kernel: row order for A/Aflat and
-    # diagonal order for Adiag/Adflat/B/Btiled.
+    # speedup uses the matching serial kernel: row order for A/Aflat/Btiled and
+    # diagonal order for Adiag/Adflat/B.
     par["self_speedup"] = par.t_self1 / par.time              # vs same code at p=1
     par["speedup_vs_row_serial"] = par.t_serial / par.time
     par["speedup_vs_diag"] = par.t_diag_serial / par.time     # vs diagonal-order serial
-    diag_variants = par.variant.isin(
-        ["Adiag-dynamic", "Adflat-dynamic", "B", "Btiled"]
-    )
+    # Btiled evaluates the cells of each tile in row order, so its matching
+    # serial kernel is row order, like A/Aflat (not the diagonal kernel).
+    diag_variants = par.variant.isin(["Adiag-dynamic", "Adflat-dynamic", "B"])
     par["speedup"] = par.speedup_vs_row_serial
     par.loc[diag_variants, "speedup"] = par.loc[
         diag_variants, "speedup_vs_diag"
@@ -268,7 +268,7 @@ def write_md(df, par, out):
         lines.append(f"| {L} | {s.iloc[0]:.3f} | {d.iloc[0]:.3f} |" if len(s) and len(d) else f"| {L} | - | - |")
     lines += ["", "## Speedup vs matching serial baseline (efficiency in brackets)",
               "", "Speedup is T_serial / T_p; efficiency is speedup / thread count.",
-              "Row-order A variants use row-order serial. Diagonal-kernel and wavefront variants use diagonal-order serial (Bdiag).",
+              "Row-order A variants and tiled B (row-order cells inside each tile) use row-order serial. Diagonal-kernel A variants and wavefront B use diagonal-order serial (Bdiag).",
               "Scaling against each variant's own one-thread run is available in `summary.csv` as `self_speedup` and in `fig_self_speedup.png`.", ""]
     threads = sorted(par.threads.unique())
     for L in sorted(par.len.unique()):
