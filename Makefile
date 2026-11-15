@@ -15,7 +15,7 @@ DATA    ?= data/mitbih_train.csv
 N       ?= 300
 LENGTHS ?= 64 128 256 512 1024
 
-.PHONY: all test golden verify clean
+.PHONY: all test golden verify analyze clean
 
 all: $(BIN)
 
@@ -48,11 +48,18 @@ verify: $(BIN)
 	@for L in $(LENGTHS); do G=results/golden/golden_N$(N)_L$$L.bin; \
 	  ./$(BIN) --input $(DATA) --n $(N) --len $$L --strategy A --schedule static  --threads 4 --golden $$G; \
 	  ./$(BIN) --input $(DATA) --n $(N) --len $$L --strategy A --schedule dynamic --threads 4 --golden $$G; \
+	  ./$(BIN) --input $(DATA) --n $(N) --len $$L --strategy Aflat --schedule static --threads 4 --golden $$G; \
 	  ./$(BIN) --input $(DATA) --n $(N) --len $$L --strategy Adiag --schedule dynamic --threads 4 --golden $$G; \
+	  ./$(BIN) --input $(DATA) --n $(N) --len $$L --strategy Adflat --schedule dynamic --threads 4 --golden $$G; \
 	  ./$(BIN) --input $(DATA) --n $(N) --len $$L --strategy Bdiag                          --golden $$G; \
 	  ./$(BIN) --input $(DATA) --n $(N) --len $$L --strategy B      --threads 4             --golden $$G; \
 	  ./$(BIN) --input $(DATA) --n $(N) --len $$L --strategy Btiled --threads 4             --golden $$G; \
 	done
+
+# Regenerate the report tables and figures from one or more sweep CSVs.
+ANALYSIS_INPUTS ?= $(lastword $(sort $(wildcard results/sweep_*_N*.csv)))
+analyze:
+	python3 scripts/analyze.py $(ANALYSIS_INPUTS) --out results/analysis $(if $(PROFILE),--profile $(PROFILE),)
 
 clean:
 	rm -rf build $(BIN)

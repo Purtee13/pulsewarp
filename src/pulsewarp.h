@@ -61,8 +61,10 @@ double dtw_tiled(const double *a, int n, const double *b, int m, int tile, doubl
 
 typedef enum {
     STRAT_SERIAL = 0,   /* serial all-pairs loop, the golden reference    */
-    STRAT_A,            /* Strategy A: omp parallel for over pairs        */
+    STRAT_A,            /* Strategy A: omp parallel for over outer rows    */
+    STRAT_AFLAT,        /* Strategy A: omp parallel for over flat pairs    */
     STRAT_ADIAG,        /* Strategy A, but each pair uses the diagonal kernel */
+    STRAT_ADFLAT,       /* Flat Strategy A with diagonal-order DTW         */
     STRAT_BDIAG,        /* Strategy B step 1: diagonal order, serial      */
     STRAT_B,            /* Strategy B: wavefront inside each DTW          */
     STRAT_BTILED        /* Strategy B, tiled wavefront                    */
@@ -78,6 +80,14 @@ void allpairs_serial(const Dataset *d, double *out);
 /* Strategy A; schedule from omp_set_schedule / OMP_SCHEDULE.
  * diag_kernel=0 uses dtw_serial per pair, 1 uses dtw_diag_serial. */
 void allpairs_A(const Dataset *d, int diag_kernel, double *out);
+/* Flatten all (i,j) pairs to one parallel iteration space. */
+void allpairs_Aflat(const Dataset *d, int diag_kernel, double *out);
+/* Profile one Strategy-A pass. Arrays must hold omp_get_max_threads() slots;
+ * each slot receives that worker's pair count and loop time in seconds. */
+void allpairs_A_profile(const Dataset *d, int diag_kernel, double *out,
+                        double *thread_seconds, size_t *thread_pairs);
+void allpairs_Aflat_profile(const Dataset *d, int diag_kernel, double *out,
+                            double *thread_seconds, size_t *thread_pairs);
 void allpairs_Bdiag(const Dataset *d, double *out);
 void allpairs_B(const Dataset *d, double *out);
 void allpairs_Btiled(const Dataset *d, int tile, double *out);

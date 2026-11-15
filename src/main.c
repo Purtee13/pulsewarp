@@ -29,13 +29,14 @@ static void usage(const char *p)
         "  --n N               number of heartbeats (default 300)\n"
         "  --len L             resampled length per beat (default 256)\n"
         "  --no-trim           keep the CSV's trailing zero padding\n"
-        "  --strategy S        serial | A | Adiag | Bdiag | B | Btiled (default serial)\n"
+        "  --strategy S        serial | A | Aflat | Adiag | Adflat | Bdiag | B | Btiled\n"
         "  --schedule S[,c]    Strategy A loop schedule: static|dynamic|guided (default static)\n"
         "  --threads T         OpenMP threads (default: OMP_NUM_THREADS)\n"
         "  --tile T            tile size for Btiled (default 64)\n"
         "  --reps R            timed repetitions, median reported (default 1)\n"
         "  --out FILE          write the distance vector (binary)\n"
         "  --golden FILE       verify against a saved serial distance vector\n"
+        "  --profile FILE      write per-thread Strategy-A work profile CSV\n"
         "  --header            print the CSV header line first\n", p);
 }
 
@@ -88,7 +89,7 @@ static int cmp_d(const void *a, const void *b)
 
 int main(int argc, char **argv)
 {
-    const char *input = NULL, *outp = NULL, *golden = NULL;
+    const char *input = NULL, *outp = NULL, *golden = NULL, *profile = NULL;
     const char *strat_s = "serial", *sched_s = "static";
     int synthetic = 0, n = 300, len = 256, trim = 1, threads = 0, tile = 64, reps = 1, header = 0;
 
@@ -97,6 +98,7 @@ int main(int argc, char **argv)
         {"len", 1, 0, 'l'}, {"no-trim", 0, 0, 'z'}, {"strategy", 1, 0, 's'},
         {"schedule", 1, 0, 'c'}, {"threads", 1, 0, 't'}, {"tile", 1, 0, 'b'},
         {"reps", 1, 0, 'r'}, {"out", 1, 0, 'o'}, {"golden", 1, 0, 'g'},
+        {"profile", 1, 0, 'p'},
         {"header", 0, 0, 'H'}, {"help", 0, 0, 'h'}, {0, 0, 0, 0}};
     int ch;
     while ((ch = getopt_long(argc, argv, "", opts, NULL)) != -1) {
@@ -113,6 +115,7 @@ int main(int argc, char **argv)
         case 'r': reps = atoi(optarg); break;
         case 'o': outp = optarg; break;
         case 'g': golden = optarg; break;
+        case 'p': profile = optarg; break;
         case 'H': header = 1; break;
         default: usage(argv[0]); return 1;
         }
@@ -125,18 +128,26 @@ int main(int argc, char **argv)
     Strategy st;
     if      (!strcmp(strat_s, "serial")) st = STRAT_SERIAL;
     else if (!strcmp(strat_s, "A"))      st = STRAT_A;
+    else if (!strcmp(strat_s, "Aflat"))  st = STRAT_AFLAT;
     else if (!strcmp(strat_s, "Adiag"))  st = STRAT_ADIAG;
+    else if (!strcmp(strat_s, "Adflat")) st = STRAT_ADFLAT;
     else if (!strcmp(strat_s, "Bdiag"))  st = STRAT_BDIAG;
     else if (!strcmp(strat_s, "B"))      st = STRAT_B;
     else if (!strcmp(strat_s, "Btiled")) st = STRAT_BTILED;
     else { fprintf(stderr, "unknown strategy %s\n", strat_s); return 1; }
+    if (profile && st != STRAT_A && st != STRAT_ADIAG && st != STRAT_AFLAT && st != STRAT_ADFLAT) {
+        fprintf(stderr, "--profile is supported only with Strategy-A variants\n");
+        return 1;
+    }
 
     /* schedule for Strategy A */
-    char sched_name[32];
+    char sched_name[32], sched_label[64];
     snprintf(sched_name, sizeof sched_name, "%s", sched_s);
     int chunk = 0;
-    char *comma = strchr(sched_name, ',');
-    if (comma) { *comma = 0; chunk = atoi(comma + 1); }
+    char *sep = strpbrk(sched_name, ",:");
+    if (sep) { *sep = 0; chunk = atoi(sep + 1); }
+    if (chunk > 0) snprintf(sched_label, sizeof sched_label, "%s:%d", sched_name, chunk);
+    else snprintf(sched_label, sizeof sched_label, "%s", sched_name);
     omp_sched_t kind;
     if      (!strcmp(sched_name, "static"))  kind = omp_sched_static;
     else if (!strcmp(sched_name, "dynamic")) kind = omp_sched_dynamic;
@@ -161,13 +172,37 @@ int main(int argc, char **argv)
         switch (st) {
         case STRAT_SERIAL: allpairs_serial(&d, dist); break;
         case STRAT_A:      allpairs_A(&d, 0, dist); break;
+        case STRAT_AFLAT:  allpairs_Aflat(&d, 0, dist); break;
         case STRAT_ADIAG:  allpairs_A(&d, 1, dist); break;
+        case STRAT_ADFLAT: allpairs_Aflat(&d, 1, dist); break;
         case STRAT_BDIAG:  allpairs_Bdiag(&d, dist); break;
         case STRAT_B:      allpairs_B(&d, dist); break;
         case STRAT_BTILED: allpairs_Btiled(&d, tile, dist); break;
         }
         times[r] = omp_get_wtime() - t0;
         fprintf(stderr, "[%s] rep %d/%d: %.6f s\n", strat_s, r + 1, reps, times[r]);
+    }
+
+    if (profile) {
+        int cap = omp_get_max_threads();
+        double *thread_seconds = calloc((size_t)cap, sizeof(double));
+        size_t *thread_pairs = calloc((size_t)cap, sizeof(size_t));
+        if (!thread_seconds || !thread_pairs) {
+            fprintf(stderr, "out of memory for profile\n"); return 1;
+        }
+        if (st == STRAT_A || st == STRAT_ADIAG)
+            allpairs_A_profile(&d, st == STRAT_ADIAG, dist, thread_seconds, thread_pairs);
+        else
+            allpairs_Aflat_profile(&d, st == STRAT_ADFLAT, dist, thread_seconds, thread_pairs);
+        FILE *pf = fopen(profile, "w");
+        if (!pf) { perror(profile); return 1; }
+        fprintf(pf, "thread,pairs,elapsed_s,strategy,schedule,n,len,threads\n");
+        for (int t = 0; t < cap; t++)
+            fprintf(pf, "%d,%zu,%.9f,%s,%s,%d,%d,%d\n", t, thread_pairs[t],
+                    thread_seconds[t], strat_s, sched_label, n, len, cap);
+        fclose(pf);
+        free(thread_seconds); free(thread_pairs);
+        fprintf(stderr, "wrote per-thread profile to %s\n", profile);
     }
 
     double checksum = 0;
@@ -191,7 +226,8 @@ int main(int argc, char **argv)
     qsort(sorted, reps, sizeof(double), cmp_d);
     double median = (reps % 2) ? sorted[reps / 2] : 0.5 * (sorted[reps / 2 - 1] + sorted[reps / 2]);
 
-    const char *sched_out = (st == STRAT_A || st == STRAT_ADIAG) ? sched_s : (st == STRAT_BTILED ? "tile" : "-");
+    const char *sched_out = (st == STRAT_A || st == STRAT_AFLAT || st == STRAT_ADIAG || st == STRAT_ADFLAT)
+                          ? sched_label : (st == STRAT_BTILED ? "tile" : "-");
     if (header)
         printf("strategy,schedule,tile,threads,n,len,pairs,reps,median_s,min_s,max_s,checksum,verify,max_rel_err,times\n");
     printf("%s,%s,%d,%d,%d,%d,%zu,%d,%.6f,%.6f,%.6f,%.10e,%s,%.3e,",
