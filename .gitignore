@@ -5,3 +5,4 @@ data/*.zip
 results/golden/*.bin
 results/logs/*
 !results/**/.gitkeep
+__pycache__/

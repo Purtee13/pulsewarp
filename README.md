@@ -32,7 +32,9 @@ results/          golden vectors, sweep CSVs, logs, analysis output
 |---|---|
 | `serial` | row-order DTW, serial pair loop. **The golden reference and T_serial.** |
 | `A` | `omp parallel for schedule(runtime)` over the outer beat index; `--schedule static\|dynamic\|guided[,chunk]` |
+| `Aflat` | Strategy A over one flattened iteration space containing every pair |
 | `Adiag` | Strategy A, but each pair uses the diagonal-order kernel (see note below) |
+| `Adflat` | Flattened Strategy A using the diagonal-order DTW kernel |
 | `Bdiag` | Strategy B step 1: diagonal-order DTW, serial. Verifies the restructuring. |
 | `B` | wavefront: one parallel region for the whole run, `omp for` over each anti-diagonal, implicit barrier between diagonals |
 | `Btiled` | tiled wavefront: `--tile T` blocks, `omp for schedule(dynamic,1)` over each block-diagonal |
@@ -71,35 +73,60 @@ Makefile shortcuts: `make golden` (serial at every length), `make verify`
 ```bash
 ssh <unityid>@arc.csc.ncsu.edu          # on the NCSU VPN
 # copy this folder over (scp/git), put data/mitbih_train.csv in place
-sinfo -o "%P %c %N"                     # pick a partition with >= 32 cores
-#   then edit the  ##SBATCH --partition=  line in scripts/sweep.slurm
+sinfo -o "%P %c %N"                     # inspect cores available per partition
+#   edit the SBATCH partition line in scripts/sweep.slurm for your allocation
 sbatch scripts/sweep.slurm              # full sweep, roughly 1-3 h at N=300
 squeue -u $USER
-python3 scripts/analyze.py results/sweep_*.csv   # -> results/analysis/
+make analyze PROFILE=results/profile_A_static_L256_p16.csv
+DATA=data/mitbih_train.csv N=300 LENGTH=256 THREADS=16 \
+  SCHEDULE=static scripts/profile.sh         # -> per-thread profile CSV
+python3 scripts/analyze.py results/sweep_*.csv --profile results/profile_A_static_L256_p16.csv
 ```
 
-The sweep covers lengths 64..1024 x threads 1..32 x {A static, A dynamic,
-Adiag, B, Btiled} plus both serial baselines, median of 5 reps, and checks
+The sweep covers lengths 64..1024 x threads 1..16 by default x {A/Aflat static,
+dynamic and guided; Adiag/Adflat; B; Btiled} plus both serial baselines, median
+of 5 reps, and checks
 every run against the golden vector. Override with env vars, e.g.
-`sbatch --export=ALL,N=200,REPS=3 scripts/sweep.slurm`.
+`sbatch --export=ALL,N=200,REPS=3 scripts/sweep.slurm`. Increase the thread
+list with `THREADS="1 2 4 8 16 32"` only when your SLURM allocation provides
+at least that many CPUs.
 `scripts/pulsewarp.slurm` is a single-run template for debugging one config.
+The CSV already included in this archive is the earlier sweep: it has no Aflat
+or Adflat measurements. Rerun `scripts/sweep.slurm` to collect those new
+variants and the Strategy-A profile; then pass that profile path to `make analyze`.
 
 ## Analysis output (`scripts/analyze.py`)
 
-- `summary.csv` / `summary.md`: runtime, speedup S_p = T_serial / T_p,
-  efficiency S_p / p, speedup vs the variant's own 1-thread run, and which of
-  A / B wins at each (length, threads)
+- `summary.csv` / `summary.md`: runtime, speedup and efficiency against the
+  same strategy at one thread, end-to-end speedup against row-order serial,
+  and which of A / B wins at each (length, threads)
 - `fig_runtime.png`, `fig_speedup.png`, `fig_efficiency.png`,
   `fig_self_speedup.png`: one panel per length
-- `fig_ratio_B_over_A.png`, `fig_ratio_Btiled_over_A.png`: heatmaps of
-  T_B / T_A over (length, threads)
-- `fig_serial_vs_length.png`: both serial kernels against O(L^2)
+- `fig_ratio_B_over_A*.png`, `fig_ratio_Btiled_over_A*.png`: heatmaps of
+  T_B / T_A using both the row-order A kernel and the diagonal-order A kernel
+  (the latter controls for the diagonal kernel's vectorization advantage)
+- `fig_crossover.png`: same-kernel scaling and observed B/A runtime ratio
+- `fig_load_imbalance.png`: per-thread work time and pair count (requires `--profile`)
+- `fig_correctness.png` / `correctness.csv`: verification coverage and maximum error
+- `fig_serial_vs_length.png`: both serial kernels against O(L²)
 
-## Note: the diagonal kernel is much faster serially
+## Interpreting the diagonal kernel and measured results
 
 The row-order kernel is latency bound: each cell waits on its left neighbour.
-In diagonal order the cells of a diagonal are independent, so GCC vectorises
-the inner loop and the *serial* diagonal kernel runs several times faster
-(about 8x at L=256 in local tests). That is why `Adiag` exists and why the
-analysis reports speedup against both serial baselines. It is worth a
-sentence in the report, because it changes what "speedup vs serial" means.
+In diagonal order the cells of a diagonal are independent, so GCC can
+vectorise the inner loop. On the included ARC sweep, the serial diagonal
+kernel (`Bdiag`) was about 3.4x faster than row-order serial at L=256
+(1.273 s vs 4.380 s). That is why `Adiag` is a separate variant and why the
+analysis distinguishes speedup against the same one-thread strategy from
+end-to-end speedup against row-order serial.
+
+The included sweep is one run on an AMD EPYC 7302P node with 16 physical
+cores, N=300, lengths 64..1024, and five timed repetitions per configuration.
+Every row passed exact golden-vector verification. Strategy A with dynamic
+scheduling reached about 16x same-kernel speedup at 16 threads in this run.
+This is an observed result for this node and dataset; report timing variation
+and the single-node scope when interpreting it.
+
+The included sweep predates `Aflat`/`Adflat` and guided scheduling. Rerun the
+updated sweep before reporting results for those additions. The sweep also
+writes a profile CSV for the load-imbalance figure on the same compute node.

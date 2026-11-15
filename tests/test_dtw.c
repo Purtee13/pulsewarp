@@ -101,8 +101,12 @@ int main(void)
         omp_set_schedule(kinds[k], 0);
         allpairs_A(&d, 0, o);
         CHECK(!memcmp(g, o, cnt * sizeof(double)), "allpairs_A schedule %d", k);
+        allpairs_Aflat(&d, 0, o);
+        CHECK(!memcmp(g, o, cnt * sizeof(double)), "allpairs_Aflat schedule %d", k);
         allpairs_A(&d, 1, o);
         CHECK(!memcmp(g, o, cnt * sizeof(double)), "allpairs_A diag kernel schedule %d", k);
+        allpairs_Aflat(&d, 1, o);
+        CHECK(!memcmp(g, o, cnt * sizeof(double)), "allpairs_Adflat schedule %d", k);
     }
     allpairs_Bdiag(&d, o); CHECK(!memcmp(g, o, cnt * sizeof(double)), "allpairs_Bdiag");
     allpairs_B(&d, o);     CHECK(!memcmp(g, o, cnt * sizeof(double)), "allpairs_B");

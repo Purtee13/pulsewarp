@@ -1,11 +1,12 @@
 #!/bin/bash
 # Full PulseWarp sweep on one ARC node.   Submit from the repo root:
 #     sbatch scripts/sweep.slurm
-# Pick a partition with >= 32 cores first:  sinfo -o "%P %c %N"
+# The sweep defaults to 16 threads. Increase both this allocation and THREADS
+# only when the selected node provides more physical cores.
 #SBATCH --job-name=pulsewarp-sweep
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
-#SBATCH --cpus-per-task=32
+#SBATCH --cpus-per-task=16
 #SBATCH --exclusive
 #SBATCH --time=06:00:00
 #SBATCH --output=results/logs/sweep_%j.out

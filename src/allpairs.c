@@ -46,6 +46,91 @@ void allpairs_A(const Dataset *d, int diag_kernel, double *out)
     }
 }
 
+/* Flat Strategy A: precompute pair endpoints once, then distribute every
+ * pair as an equal-sized OpenMP iteration. This avoids triangular row skew. */
+static void make_pair_endpoints(int n, size_t **pi_out, size_t **pj_out, size_t *count_out)
+{
+    size_t count = (size_t)n * (n - 1) / 2;
+    size_t *pi = malloc(count * sizeof(*pi)), *pj = malloc(count * sizeof(*pj));
+    if (!pi || !pj) { fprintf(stderr, "out of memory for flattened pairs\n"); exit(1); }
+    size_t k = 0;
+    for (int i = 0; i < n; i++)
+        for (int j = i + 1; j < n; j++, k++) { pi[k] = (size_t)i; pj[k] = (size_t)j; }
+    *pi_out = pi; *pj_out = pj; *count_out = count;
+}
+
+void allpairs_Aflat(const Dataset *d, int diag_kernel, double *out)
+{
+    size_t *pi, *pj, count;
+    make_pair_endpoints(d->n, &pi, &pj, &count);
+    const int L = d->len;
+    #pragma omp parallel
+    {
+        double *work = xmalloc(3 * (size_t)(L + 1));
+        #pragma omp for schedule(runtime)
+        for (size_t k = 0; k < count; k++) {
+            const double *a = BEAT(d, pi[k]), *b = BEAT(d, pj[k]);
+            out[k] = diag_kernel ? dtw_diag_serial(a, L, b, L, work)
+                                 : dtw_serial(a, L, b, L, work);
+        }
+        free(work);
+    }
+    free(pi); free(pj);
+}
+
+/* Profile Strategy A without including time spent waiting at the worksharing
+ * barrier. nowait lets each worker record its own completion time; the
+ * parallel-region barrier still protects the shared output and work buffers. */
+void allpairs_A_profile(const Dataset *d, int diag_kernel, double *out,
+                        double *thread_seconds, size_t *thread_pairs)
+{
+    const int n = d->n, L = d->len;
+    #pragma omp parallel
+    {
+        const int tid = omp_get_thread_num();
+        double *work = xmalloc(3 * (size_t)(L + 1));
+        size_t count = 0;
+        double start = omp_get_wtime();
+        #pragma omp for schedule(runtime) nowait
+        for (int i = 0; i < n; i++)
+            for (int j = i + 1; j < n; j++) {
+                out[pair_index(n, i, j)] = diag_kernel
+                    ? dtw_diag_serial(BEAT(d, i), L, BEAT(d, j), L, work)
+                    : dtw_serial(BEAT(d, i), L, BEAT(d, j), L, work);
+                count++;
+            }
+        thread_seconds[tid] = omp_get_wtime() - start;
+        thread_pairs[tid] = count;
+        free(work);
+    }
+}
+
+void allpairs_Aflat_profile(const Dataset *d, int diag_kernel, double *out,
+                            double *thread_seconds, size_t *thread_pairs)
+{
+    size_t *pi, *pj, count;
+    make_pair_endpoints(d->n, &pi, &pj, &count);
+    const int L = d->len;
+    #pragma omp parallel
+    {
+        const int tid = omp_get_thread_num();
+        double *work = xmalloc(3 * (size_t)(L + 1));
+        size_t assigned = 0;
+        double start = omp_get_wtime();
+        #pragma omp for schedule(runtime) nowait
+        for (size_t k = 0; k < count; k++) {
+            const double *a = BEAT(d, pi[k]), *b = BEAT(d, pj[k]);
+            out[k] = diag_kernel ? dtw_diag_serial(a, L, b, L, work)
+                                 : dtw_serial(a, L, b, L, work);
+            assigned++;
+        }
+        thread_seconds[tid] = omp_get_wtime() - start;
+        thread_pairs[tid] = assigned;
+        free(work);
+    }
+    free(pi); free(pj);
+}
+
 /* Strategy B, step 1: same loop, DTW evaluated in diagonal order (serial). */
 void allpairs_Bdiag(const Dataset *d, double *out)
 {
