@@ -153,24 +153,57 @@ to other CPUs without further measurements.
   diagonal-kernel advantage should be reported separately from parallel
   scaling.
 - For the tested `N=300` configurations, the fastest A variant beat the
-  fastest B variant at every measured length and thread count. The extension
-  experiments below have not been run, so this finding is limited to the main
-  sweep's workload.
+  fastest B variant at every measured length and thread count. The `nsweep`
+  extension (below) checks whether this changes when A has few pairs to
+  distribute.
 - Wavefront B at one thread ran at 0.13–0.52x the diagonal-order serial baseline. Tiled B reached about 7.1x row-order serial at L=1024, p=8, then fell to about 4.8x at p=16. Against Strategy A with the same row-order kernel, tiled B was faster in 8 of 25 configurations (mostly p<=4 at L>=512; ratio 0.73–0.89), partly because tiling already speeds up the kernel at one thread (1.38x at L=1024). At p=16 A is 3–24x faster. No B variant beat the diagonal-kernel A variants in any configuration.
 
-## Optional extension experiments
+## Extension experiments
 
-These experiments are follow-up work and are **not included in the main-sweep
-results**. They are not required to reproduce the results above. If run later,
-`scripts/sweep_ext.slurm` submits them and `scripts/analyze_ext.py` analyzes the
-extension output.
+Only `nsweep` has been run and analyzed. It is reported separately from the
+main sweep; its data are `results/ext_nsweep_341791.csv` (environment record:
+`results/ext_341791.env.txt`) and its analysis is in `results/analysis_ext/`.
+`weak`, `affinity` and `lengths` are implemented in `scripts/sweep_ext.sh` but
+have **not** been run, so no results from them should be cited.
+
+Regenerate the `nsweep` analysis with:
+
+```bash
+python3 scripts/analyze_ext.py --dir results --out results/analysis_ext
+```
+
+### `nsweep` findings
+
+`nsweep` used `N = 2, 3, 4, 6, 8, 16, 32` beats, `L = 1024` and `4096`, 16
+threads, the same node, compiler and `mitbih_train.csv` as the main sweep. All
+112 rows passed exact golden-vector verification. Speedups in
+`ext_summary.md` are against the diagonal-order serial baseline at the same
+`N` and `L`.
+
+- No B variant beat the diagonal-order serial code. The best B result was
+  0.95x (tiled B, tile 128, `N=32`, `L=4096`). With `N=2` (a single pair, so
+  Strategy A has nothing to distribute), wavefront B ran at 0.10x
+  (`L=1024`) and 0.48x (`L=4096`).
+- Wavefront B improved with length (about 0.10x to 0.48x from `L=1024` to
+  `L=4096`), consistent with more work per diagonal barrier. Longer sequences
+  were not tested, so no break-even length is claimed.
+- `OMP_WAIT_POLICY=active` did not change wavefront B's speedup
+  (0.10x vs 0.10x at `L=1024`; 0.48x vs 0.48x at `L=4096`), so the cost is
+  not explained by thread wake-up latency alone.
+- Flattened A reached about 13x at `N=6`, `L=1024`; the outer-index A loop
+  needed about `N=32` to reach a similar speedup because it has fewer outer
+  iterations to balance.
+- This comparison is against the diagonal-order baseline. Tiled B computes its
+  tile cells in row order, so it is disadvantaged by this baseline; the
+  `serial-row` rows in the CSV allow a row-order comparison.
+
+### Not yet run
 
 | Mode | Question |
 |---|---|
-| `nsweep` | With few pairs (`N=2..32`) and long sequences (`L=1024, 4096`), can B overtake A? Includes an active-wait B run. |
 | `weak` | How does performance change as work grows with thread count? |
 | `affinity` | How do `OMP_PROC_BIND` and `OMP_PLACES` settings affect performance? |
-| `lengths` | How do the proposal's additional lengths 32 and 187 perform? |
+| `lengths` | How do lengths 32 and 187 perform? |
 
-Do not cite extension results unless these experiments have actually been run
-and analyzed.
+Do not cite results from these modes unless they have actually been run and
+analyzed.
