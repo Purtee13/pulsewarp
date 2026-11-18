@@ -1,5 +1,35 @@
 # PulseWarp extension results
 
+## Weak scaling (work per thread constant; efficiency = T(1)/T(p), ideal 1.0)
+
+| experiment | variant | p | n | len | time (s) | efficiency |
+|---|---|---:|---:|---:|---:|---:|
+| weakA | A | 1 | 212 | 256 | 0.278 | 1.00 |
+| weakA | A | 2 | 300 | 256 | 0.278 | 1.00 |
+| weakA | A | 4 | 424 | 256 | 0.297 | 0.94 |
+| weakA | A | 8 | 600 | 256 | 0.349 | 0.80 |
+| weakA | A | 16 | 848 | 256 | 0.384 | 0.72 |
+| weakA | A-rowkernel | 1 | 212 | 256 | 2.378 | 1.00 |
+| weakA | A-rowkernel | 2 | 300 | 256 | 2.386 | 1.00 |
+| weakA | A-rowkernel | 4 | 424 | 256 | 2.391 | 0.99 |
+| weakA | A-rowkernel | 8 | 600 | 256 | 2.398 | 0.99 |
+| weakA | A-rowkernel | 16 | 848 | 256 | 2.449 | 0.97 |
+| weakB | Adflat | 1 | 40 | 256 | 0.009 | 1.00 |
+| weakB | Adflat | 2 | 40 | 362 | 0.009 | 1.04 |
+| weakB | Adflat | 4 | 40 | 512 | 0.011 | 0.84 |
+| weakB | Adflat | 8 | 40 | 724 | 0.010 | 0.92 |
+| weakB | Adflat | 16 | 40 | 1024 | 0.013 | 0.71 |
+| weakB | B | 1 | 40 | 256 | 0.037 | 1.00 |
+| weakB | B | 2 | 40 | 362 | 0.079 | 0.47 |
+| weakB | B | 4 | 40 | 512 | 0.183 | 0.20 |
+| weakB | B | 8 | 40 | 724 | 0.374 | 0.10 |
+| weakB | B | 16 | 40 | 1024 | 1.464 | 0.03 |
+| weakB | Btiled | 1 | 40 | 256 | 0.063 | 1.00 |
+| weakB | Btiled | 2 | 40 | 362 | 0.073 | 0.87 |
+| weakB | Btiled | 4 | 40 | 512 | 0.093 | 0.69 |
+| weakB | Btiled | 8 | 40 | 724 | 0.117 | 0.54 |
+| weakB | Btiled | 16 | 40 | 1024 | 0.303 | 0.21 |
+
 ## Few beats, long sequences (speedup vs diagonal-order serial at the same N, L)
 
 ### length 1024, p=16
